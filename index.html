@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The beginning of the story</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            background-image: var(--bg-url);
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.3);
+            z-index: -1;
+        }
+
+        .count-box {
+            margin-bottom: 24px;
+            padding: 12px 24px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            font-size: 24px;
+            font-weight: bold;
+            color: #d62828;
+            text-align: center;
+            min-width: 180px;
+            z-index: 1;
+            user-select: none;
+        }
+
+        .fall-button {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background-color: #d62828;
+            border: none;
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(214, 40, 40, 0.4);
+            transition: all 0.2s ease;
+            z-index: 1;
+            user-select: none;
+        }
+
+        .fall-button:hover {
+            background-color: #e03131;
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px rgba(214, 40, 40, 0.5);
+        }
+
+        .fall-button:active {
+            transform: scale(0.95);
+            box-shadow: 0 4px 10px rgba(214, 40, 40, 0.4);
+        }
+
+        .reset-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            background-color: #6c757d;
+            border: none;
+            color: #ffffff;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 20;
+            transition: background-color 0.2s ease;
+        }
+
+        .reset-button:hover {
+            background-color: #5a6268;
+        }
+
+        .fall-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .fall-image {
+            position: absolute;
+            top: -60px;
+            left: var(--start-x);
+            width: var(--img-width);
+            height: var(--img-height);
+            object-fit: contain;
+            animation: fall var(--fall-duration) linear forwards;
+            pointer-events: none;
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateY(0) rotate(0deg) translateX(0);
+                opacity: 1;
+            }
+            25% {
+                transform: translateY(25vh) rotate(calc(var(--rotate) * 0.25)) translateX(var(--sway));
+            }
+            50% {
+                transform: translateY(50vh) rotate(calc(var(--rotate) * 0.5)) translateX(0);
+            }
+            75% {
+                transform: translateY(75vh) rotate(calc(var(--rotate) * 0.75)) translateX(calc(var(--sway) * -1));
+            }
+            100% {
+                transform: translateY(calc(100vh + 60px)) rotate(var(--rotate)) translateX(0);
+                opacity: 0.8;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="count-box" id="countBox">累计数量：0</div>
+    <button class="fall-button" id="fallButton">点击</button>
+    <button class="reset-button" id="resetButton">重置数据</button>
+    <div class="fall-container" id="fallContainer"></div>
+
+    <script>
+        const CONFIG = {
+            // 背景图改为同目录的背景.png
+            backgroundImageUrl: 'pages/bj.png',
+            defaultImage: 'pages/tt.png',
+            // 新增1000/1300/1500次对应的掉落图片
+            milestoneImages: {
+                100: 'pages/zjfz.png',
+                500: 'pages/hyq.png',
+                800: 'pages/mcw.png',
+                1000: 'pages/lqc.png',
+                1300: 'pages/yjj.png',
+                1500: 'pages/bl.png'
+            },
+            imageWidth: 50,
+            imageHeight: 50,
+            fallDuration: 3000,
+            buttonText: '点击',
+            countPrefix: '累计数量：',
+            // 音效文件路径（同目录的orb.mp3）
+            soundEffectUrl: 'Sound effects/orb.mp3'
+        };
+
+        let totalCount = 0;
+        let unlockedImages = [CONFIG.defaultImage];
+        const STORAGE_KEY = 'fallImageTotalCount';
+        const countBox = document.getElementById('countBox');
+        const fallButton = document.getElementById('fallButton');
+        const resetButton = document.getElementById('resetButton');
+        const fallContainer = document.getElementById('fallContainer');
+        // 创建音效对象
+        const clickSound = new Audio(CONFIG.soundEffectUrl);
+        // 优化音效播放体验（允许重复播放）
+        clickSound.preload = 'auto';
+        clickSound.volume = 1.0; // 音量可调整，0-1之间
+
+        function initPage() {
+            document.body.style.setProperty('--bg-url', `url(${CONFIG.backgroundImageUrl})`);
+            fallButton.textContent = CONFIG.buttonText;
+            
+            const savedCount = localStorage.getItem(STORAGE_KEY);
+            if (savedCount !== null) {
+                totalCount = parseInt(savedCount);
+                updateCountDisplay();
+                initUnlockedImages();
+            }
+            
+            fallButton.addEventListener('click', handleButtonClick);
+            resetButton.addEventListener('click', handleReset);
+        }
+
+        // 播放点击音效的函数
+        function playClickSound() {
+            // 重新加载音效以支持连续点击播放
+            clickSound.currentTime = 0;
+            try {
+                clickSound.play().catch(err => {
+                    console.log('音效播放失败:', err);
+                });
+            } catch (e) {
+                console.log('音效播放异常:', e);
+            }
+        }
+
+        function initUnlockedImages() {
+            unlockedImages = [CONFIG.defaultImage];
+            Object.keys(CONFIG.milestoneImages).forEach(milestone => {
+                if (totalCount >= parseInt(milestone)) {
+                    unlockedImages.push(CONFIG.milestoneImages[milestone]);
+                }
+            });
+        }
+
+        function updateCountDisplay() {
+            countBox.textContent = `${CONFIG.countPrefix}${totalCount}`;
+        }
+
+        function handleButtonClick() {
+            // 点击时播放音效
+            playClickSound();
+            
+            totalCount++;
+            updateCountDisplay();
+            localStorage.setItem(STORAGE_KEY, totalCount.toString());
+            
+            checkMilestone();
+            createFallImage();
+        }
+
+        function checkMilestone() {
+            const milestone = CONFIG.milestoneImages[totalCount];
+            if (milestone && !unlockedImages.includes(milestone)) {
+                unlockedImages.push(milestone);
+            }
+        }
+
+        function getRandomImage() {
+            const randomIndex = Math.floor(Math.random() * unlockedImages.length);
+            return unlockedImages[randomIndex];
+        }
+
+        function createFallImage() {
+            const img = document.createElement('img');
+            img.src = getRandomImage();
+            img.className = 'fall-image';
+            img.alt = '';
+
+            const maxLeft = window.innerWidth - CONFIG.imageWidth;
+            const randomLeft = Math.floor(Math.random() * maxLeft);
+            const randomRotate = Math.floor(Math.random() * 360) + 'deg';
+            const randomSway = Math.floor(Math.random() * 30) + 10;
+
+            img.style.setProperty('--start-x', `${randomLeft}px`);
+            img.style.setProperty('--img-width', `${CONFIG.imageWidth}px`);
+            img.style.setProperty('--img-height', `${CONFIG.imageHeight}px`);
+            img.style.setProperty('--fall-duration', `${CONFIG.fallDuration}ms`);
+            img.style.setProperty('--rotate', randomRotate);
+            img.style.setProperty('--sway', `${randomSway}px`);
+
+            fallContainer.appendChild(img);
+
+            setTimeout(() => {
+                img.remove();
+            }, CONFIG.fallDuration);
+        }
+
+        function handleReset() {
+            if (confirm('确定要清除所有数据并重置计数吗？此操作不可恢复。')) {
+                localStorage.removeItem(STORAGE_KEY);
+                totalCount = 0;
+                unlockedImages = [CONFIG.defaultImage];
+                updateCountDisplay();
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', initPage);
+    </script>
+</body>
+</html>
